@@ -72,7 +72,7 @@ def cosine_norm_factor(vec):
 
 def vsm(tf_idf,options,norms):
 	if options["pivot_len_normalization"]:
-		m=0.75 ##slope
+		m=0.5 ##slope
 		m = m/(1-m)
 		avg_norm = sum(norms.values())/len(norms.keys())
 	elif options["cosine_normalization"]:
@@ -349,23 +349,38 @@ def search(path_to_index, queries):
 
 
 def main():
-	path_to_index="index"
-	testfile="queryfile"
-	path_to_output="resultfile"
-	read_token_stats(path_to_index)
 	#path_to_index = sys.argv[1]
 	#testfile = sys.argv[2]
 	#path_to_output = sys.argv[3]
-	queries = read_file(testfile)
-	outputs = search(path_to_index, queries)
-	write_file(outputs, path_to_output)
+
+	path_to_index="index"
+	#testfile="queryfile"
+	#path_to_output="resultfile"
+
+	read_token_stats(path_to_index)
+	while True:
+		try:
+			query = input(">>> Enter search query: ")
+			if len(query.strip()) < 1:
+				sys.exit()
+			start_time = time.time()
+			outputs = search(path_to_index,[query])
+			print("Time(sec) taken to execute query: ",time.time()-start_time)
+			print()
+			for output in outputs:
+				if output:
+					for line in output:
+						print(line.strip()+"\n")
+				else:
+					print("NO-RESULT-FOR-THE-QUERY"+"\n")
+				print('\n')
+		except EOFError:
+			sys.exit()
+	#queries = read_file(testfile)
+	#outputs = search(path_to_index, queries)
+	#write_file(outputs, path_to_output)
 
 
 if __name__ == '__main__':
-	start_time = time.time()
 	main()
-	end_time = time.time()
-	elapsed_time = end_time - start_time
-	print("Elapsed time(sec):",elapsed_time)
-	print("Elapsed time(H:M:S): {}".format(get_time_info(elapsed_time)))
 
