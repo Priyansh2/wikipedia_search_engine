@@ -218,6 +218,8 @@ def get_stats(tokens,options):
 		stats.append("min_freq_token|"+str(tokens.most_common()[-1][1]))
 	if options["avg_token_len"]:
 		stats.append("avg_token_len|"+str(sum([len(token) for token in tokens.keys()])/len(tokens.keys())))
+	if options["doc_len"]:
+		stats.append("doc_len|"+str(len(" ".join(tokens))))
 	return sorted(stats)
 
 def compute_text_stats(text,stat_options):
@@ -281,7 +283,7 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 			text = process_text(text)
 			options={"case_unfolding":True,"length_check":True,"remove_punctuations":True,"strip_tokens":True,"lang_tokens":True}
 			text["t"]=preprocessor(title.strip(),options)
-			stat_options={"token_count":True,"unique_token_count":True,"max_freq_token":True,"min_freq_token":True,"avg_token_len":True,"avg_token_freq":True}
+			stat_options={"token_count":True,"unique_token_count":True,"max_freq_token":True,"min_freq_token":True,"avg_token_len":True,"avg_token_freq":True,"doc_len":True}
 			token_stats = compute_text_stats(text,stat_options)
 			DOCID_TOKEN_STATS_MAP.write(self.docId + ";" + ",".join(token_stats) + "\n")
 			self.inText = 0

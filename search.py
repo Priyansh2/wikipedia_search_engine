@@ -71,9 +71,8 @@ def cosine_norm_factor(vec):
 	return norm(list(vec.values()))
 
 def vsm(tf_idf,options,norms):
-	if options["pivot_len_normalization"]:
-		m=0.5 ##slope
-		m = m/(1-m)
+	if options["pivot_len_normalization"]: ## norm_factor = (1-m)avg(norm) + m*(norm), norm is document normalization term
+		m=0.75 ##slope
 		avg_norm = sum(norms.values())/len(norms.keys())
 	elif options["cosine_normalization"]:
 		cosine_norm_factor = cosine_norm_factor(tf_idf)
@@ -81,8 +80,7 @@ def vsm(tf_idf,options,norms):
 		norm_factor = norms[docid]
 		if options["pivot_len_normalization"]:
 			norm_factor*=m
-			norm_factor/=avg_norm
-			norm_factor+=1
+			norm_factor+=(1-m)*avg_norm
 		elif options["cosine_normalization"]:
 			norm_factor = cosine_norm_factor
 		tf_idf[docid]/=norm_factor
