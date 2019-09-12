@@ -122,6 +122,8 @@ def create_postings(tokens,elem,docID):
 		else:
 			posting_list[stemmed_word]=SortedDict({docID:1})
 
+#def docID_maxfreq_mapping(tokens,docID):
+
 def create_field_postings(field_token_dict,docID):
 	for field in field_token_dict:
 		tokens= field_token_dict[field]
@@ -256,6 +258,28 @@ def write_to_file(end=False): ## create partial inverted_index files for handlin
 		FILE_CTR += 1
 		posting_list=SortedDict()
 
+def create_secondary_index(primary_index_location):
+	secondary_index_location=primary_index_location
+	#secondary_index_location="./sec_index"
+	if not os.path.exists(secondary_index_location):
+		os.makedirs(secondary_index_location)
+	for file in os.listdir(primary_index_location):
+		if "index-" in file:
+			sec_index_file = file.replace("index","secindex")
+			sec_index_file = os.path.join(secondary_index_location,sec_index_file)
+			sec_fd = open(sec_index_file,"w")
+			linecount=0
+			sec_index=defaultdict(list)
+			with open(os.path.join(primary_index_location,file),"r") as f:
+				line = f.readline()
+				while line:
+					index_word = line.split(";")[0]
+					sec_index[index_word].append(str(linecount))
+					linecount+=len(line)
+					line=f.readline()
+			for word in sec_index:
+				sec_fd.write(word+";"+",".join(sec_index[word])+"\n")
+			sec_fd.close()
 
 def merge_files(remove_index_files=False): ## merging inverted_index files using min_heap to create global index for searching
 	index_files = []
@@ -381,6 +405,7 @@ def main():
 	write_to_file(True) ## to write partial index
 	DOCID_TITLE_MAP.close()
 	merge_files(True)
+	create_secondary_index(sys.argv[2])
 	with open("docid_ctr", "w") as f: ## stroing the docID counter (DOCID_CTR) value to file "docid_ctr"
 		f.write(str(DOCID_CTR) + "\n")
 

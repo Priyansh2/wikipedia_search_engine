@@ -1,3 +1,7 @@
+import re
+import os,sys
+
+
 text="""{{Infobox ice hockey player
 | name = Marko Virtanen
 | image =
@@ -16,7 +20,6 @@ text="""{{Infobox ice hockey player
 | career_end = 2000
 }}"""
 def extract_infobox(text):
-	import re
 	infobox=[]
 	for match in reversed(list(re.finditer("{{infobox", text))):
 		start=match.span()[0]
@@ -47,5 +50,23 @@ def extract_infobox(text):
 	print(infobox_info)
 	'''infobox_info = filter_contents(infobox_info)
 	return infobox_info,text'''
-#print(text)
-extract_infobox(text.lower())
+#extract_infobox(text.lower())
+
+pri_fd  = open("index/index-0-b", "r")
+sec_fd = open("sec_index/secindex-0-b","r")
+for i in range(3):
+	line = sec_fd.readline()
+	offsets = [int(offset) for offset in line.split(";")[1].strip().split(",")]
+	print(offsets)
+	for offset in offsets:
+		pri_fd.seek(offset,0)
+		print(pri_fd.readline()+"\n")
+	print("\n\n")
+pri_fd.close()
+sec_fd.close()
+pri_fd  = open("index/index-0-b", "r")
+word="0x0077be"
+offsets=[135348,135364]
+for offset in offsets:
+	pri_fd.seek(offset,0)
+	print(pri_fd.readline()+"\n")
