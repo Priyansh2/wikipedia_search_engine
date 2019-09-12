@@ -24,7 +24,7 @@ nlp = English()
 nlp.max_length = 1000000000
 porter_stemmer = PorterStemmer()
 query_re = re.compile(r'[t|b|c|e|i|r]:')
-
+vsm_option={"pivot_len_normalization":True,"cosine_normalization":False}
 field_map={"title:":"t:","body:":"b:","category:":"c:","ref:":"r:","infobox:":"i:","link:":"e:"}
 DOC_CTR = open("docid_ctr","r").read().split("\n")[0].strip()
 DOC_CTR=int(DOC_CTR)
@@ -67,22 +67,27 @@ def max_tf_normalization(token_freq,max_term_freq,log_enable=True):
 def avg_tf_normalization(token_freq,avg_token_freq):
 	return tf_log(token_freq)/tf_log(avg_token_freq)
 
+def cosine_norm_factor(vec):
+	return norm(list(vec.values()))
+
 def vsm(tf_idf,options,norms):
-	#norm_factor = norm(list(tf_idf.values()))
-	m=0.75 ##slope
-	m = m/(1-m)
-	flag=0
 	if options["pivot_len_normalization"]:
-		flag=1
-		avg_norm = sum(norms.values())/len(tf_idf.keys())
+		m=0.75 ##slope
+		m = m/(1-m)
+		avg_norm = sum(norms.values())/len(norms.keys())
+	elif options["cosine_normalization"]:
+		cosine_norm_factor = cosine_norm_factor(tf_idf)
 	for docid in tf_idf:
 		norm_factor = norms[docid]
-		if flag:
+		if options["pivot_len_normalization"]:
 			norm_factor*=m
 			norm_factor/=avg_norm
 			norm_factor+=1
+		elif options["cosine_normalization"]:
+			norm_factor = cosine_norm_factor
 		tf_idf[docid]/=norm_factor
 	return tf_idf
+
 
 def calc_tfidf(documents,vsm_options=None):
 	tf_idf = defaultdict(float) ## it stores tfidf score of retrieved documents for a query
@@ -90,14 +95,16 @@ def calc_tfidf(documents,vsm_options=None):
 	for term in documents: ## 'term' here means index_word
 		num_term_docs = len(documents[term]) ## 'num_term_docs' is number of documents in which word present
 		if num_term_docs: ## if num_term_docs is atleast 1, because term's absence from any document will not contribute to search
+			if vsm_options:
+				idf=1
+			else:
+				idf = compute_idf(num_term_docs) ## DOC_CTR is total_documents
 			for docId in documents[term]:
 				if vsm_options:
-					if vsm_options["pivot_len_normalization"] and docId not in norms:
+					if docId not in norms:
 						norms[docId]=float(token_stats[docId].split(",")[-1].split("|")[1].strip())
-					idf = 1
 					tf = avg_tf_normalization(documents[term][docId][0],float(token_stats[docId].split(",")[0].split("|")[1].strip()))
 				else:
-					idf = compute_idf(num_term_docs) ## DOC_CTR is total_documents
 					tf = tf_log(documents[term][docId][0]) ## documents[term][docId] is freq. of term in doc of id 'docId'
 				tfidf_score = tf * idf
 				for field in documents[term][docId][1:]:
@@ -195,7 +202,6 @@ def process_text(text):
 
 def normal_query(path_to_index,query):
 	query = process_text(query)
-	options={"pivot_len_normalization":False}
 	if not query:
 		return []
 	#documents = defaultdict(lambda: defaultdict(int))
@@ -231,7 +237,7 @@ def normal_query(path_to_index,query):
 									#documents[key][docId]+=docFreq
 							break
 	if documents:
-		tf_idf = calc_tfidf(documents,options)
+		tf_idf = calc_tfidf(documents,vsm_option)
 		return get_query_results(path_to_index,tf_idf)
 	else:
 		return []
@@ -267,7 +273,6 @@ def get_expanded_query(query):
 
 def field_query(path_to_index,query):
 	new_fields,new_query = get_expanded_query(query)
-	options={"pivot_len_normalization":False}
 	if not new_fields or not new_query:
 		return []
 	#documents =defaultdict(lambda: defaultdict(int))
@@ -300,7 +305,7 @@ def field_query(path_to_index,query):
 									documents[new_query[x]][docId]+=[docFreq,new_fields[x]]
 						break
 	if documents:
-		tf_idf = calc_tfidf(documents,options)
+		tf_idf = calc_tfidf(documents,vsm_option)
 		return get_query_results(path_to_index,tf_idf)
 	else:
 		return []
