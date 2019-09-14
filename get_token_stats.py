@@ -207,19 +207,40 @@ def process_text(text):
 def get_stats(tokens,options):
 	stats=[]
 	if options["token_count"]:
-		stats.append("token_count|"+str(sum(tokens.values())))
+		try:
+			stats.append("token_count|"+str(sum(tokens.values())))
+		except:
+			stats.append("token_count|1")
 	if options["unique_token_count"]:
-		stats.append("unique_token_count|"+str(len(tokens.keys())))
+		try:
+			stats.append("unique_token_count|"+str(len(tokens.keys())))
+		except:
+			stats.append("unique_token_count|1")
 	if options["max_freq_token"]:
-		stats.append("max_freq_token|"+str(tokens.most_common()[0][1]))
+		try:
+			stats.append("max_freq_token|"+str(tokens.most_common()[0][1]))
+		except:
+			stats.append("max_freq_token|1")
 	if options["avg_token_freq"]:
-		stats.append("avg_token_freq|"+str(sum(tokens.values())/len(tokens.keys())))
+		try:
+			stats.append("avg_token_freq|"+str(sum(tokens.values())/len(tokens.keys())))
+		except:
+			stats.append("avg_token_freq|1")
 	if options["min_freq_token"]:
-		stats.append("min_freq_token|"+str(tokens.most_common()[-1][1]))
+		try:
+			stats.append("min_freq_token|"+str(tokens.most_common()[-1][1]))
+		except:
+			stats.append("min_freq_token|1")
 	if options["avg_token_len"]:
-		stats.append("avg_token_len|"+str(sum([len(token) for token in tokens.keys()])/len(tokens.keys())))
+		try:
+			stats.append("avg_token_len|"+str(sum([len(token) for token in tokens.keys()])/len(tokens.keys())))
+		except:
+			stats.append("avg_token_len|1")
 	if options["doc_len"]:
-		stats.append("doc_len|"+str(len(" ".join(tokens))))
+		try:
+			stats.append("doc_len|"+str(len(" ".join(tokens))))
+		except:
+			stats.append("doc_len|1")
 	return sorted(stats)
 
 def compute_text_stats(text,stat_options):
@@ -296,7 +317,7 @@ def main():
 	parser = xml.sax.make_parser()
 	parser.setContentHandler(WikiHandler())
 	parser.parse(sys.argv[1])
-
+	DOCID_TOKEN_STATS_MAP.close()
 if __name__ == '__main__':
 	start_time = time.time()
 	main()
