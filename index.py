@@ -29,6 +29,7 @@ ARTICLE_MIN_WORDS = 50 ## Ignore article with less than 50 words
 FIELD_MIN_TOKENS = 2 ## ignore article if any of its field has less than 2 tokens after preprocessing
 DOCID_CTR = 0 ## docId which is mapped to title
 DOCID_TITLE_MAP = None ## store file discriptor of docid-title mapping
+DOCID_TOKEN_STATS_MAP=None
 posting_list = SortedDict()
 porter_stemmer = PorterStemmer()
 DATA=defaultdict(list)
@@ -329,38 +330,13 @@ def merge_files(remove_index_files=False): ## merging inverted_index files using
 		[os.remove(file_) for file_ in index_files]
 		shutil.rmtree(inverted_index) ## remove the previously_created partial inverted_index files
 
-def get_stats(tokens,options):
-	stats=[]
-	if options["token_count"]:
-		stats.append("token_count|"+str(sum(tokens.values())))
-	if options["unique_token_count"]:
-		stats.append("unique_token_count|"+str(len(tokens.keys())))
-	if options["max_freq_token"]:
-		stats.append("max_freq_token|"+str(tokens.most_common()[0][1]))
-	if options["avg_token_freq"]:
-		stats.append("avg_token_freq|"+str(sum(tokens.values())/len(tokens.keys())))
-	if options["min_freq_token"]:
-		stats.append("min_freq_token|"+str(tokens.most_common()[-1][1]))
-	if options["avg_token_len"]:
-		stats.append("avg_token_len|"+str(sum([len(token) for token in tokens.keys()])/len(tokens.keys())))
-	if options["doc_len"]:
-		stats.append("doc_len|"+str(len(" ".join(tokens))))
-	return sorted(stats)
-
-def compute_text_stats(text,stat_options):
-	all_tokens=Counter()
-	for field in text:
-		all_tokens+=Counter(text[field])
-	stats = get_stats(all_tokens,stat_options)
-	return stats
-
 def get_time_info(sec_elapsed):
 	h = int(sec_elapsed / (60 * 60))
 	m = int((sec_elapsed % (60 * 60)) / 60)
 	s = sec_elapsed % 60
 	return "{}:{:>02}:{:>05.2f}".format(h, m, s)
 
-count=10000
+duplicate_titles=defaultdict(int)
 class WikiHandler(xml.sax.handler.ContentHandler):
 	def __init__(self):
 		self.inTitle=0
@@ -382,8 +358,8 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 					DOCID_TITLE_MAP.close()
 				if DOCID_TOKEN_STATS_MAP is not None:
 					DOCID_TOKEN_STATS_MAP.close()
-				DOCID_TITLE_MAP = open(os.path.join(sys.argv[2],"docid_title_map-" + str(int(DOCID_CTR/10000))), "w")
 				DOCID_TOKEN_STATS_MAP = open(os.path.join(sys.argv[2],"docid_token_stats_map-" + str(int(DOCID_CTR/10000))), "w")
+				DOCID_TITLE_MAP = open(os.path.join(sys.argv[2],"docid_title_map-" + str(int(DOCID_CTR/10000))), "w")
 			self.docId = str(DOCID_CTR)
 			DOCID_CTR += 1
 
@@ -403,7 +379,7 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 			self.bufferText += data
 
 	def endElement(self, name):
-		global count,DOCID_CTR
+		global DOCID_CTR
 		if name == "title":
 			self.inTitle = 0
 		elif name == "text":
@@ -417,7 +393,7 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 				if text_tokens:
 					text_tokens["t"]=preprocessor(title,options)
 					stat_options={"token_count":True,"unique_token_count":True,"max_freq_token":True,"min_freq_token":True,"avg_token_len":True,"avg_token_freq":True,"doc_len":True}
-					token_stats = compute_text_stats(text,stat_options)
+					token_stats = compute_text_stats(text_tokens,stat_options)
 					DOCID_TOKEN_STATS_MAP.write(self.docId + ";" + ",".join(token_stats) + "\n")
 					create_field_postings(text_tokens,self.docId)
 					DOCID_TITLE_MAP.write(self.docId + ":" + self.bufferTitle + "\n")
