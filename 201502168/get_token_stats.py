@@ -17,6 +17,8 @@ from collections import defaultdict,Counter
 nlp = English()
 nlp.max_length = 1000000000
 DOCID_CTR = 0 ## docId which is mapped to title
+ARTICLE_MIN_WORDS = 50 ## Ignore article with less than 50 words
+FIELD_MIN_TOKENS = 2 ## ignore article if any of its field has less than 2 tokens after preprocessing
 DOCID_TOKEN_STATS_MAP=None
 porter_stemmer = PorterStemmer()
 links1_re = re.compile(r'\[(\w+):\/\/(.*?)(( (.*?))|())\]', re.UNICODE) ## find any links
@@ -192,17 +194,34 @@ def extract_infobox(text):
 
 def process_text(text):
 	## processing each wiki_page parts by parts
+	options={"case_unfolding":False,"length_check":True,"remove_punctuations":False,"strip_tokens":True,"lang_tokens":True}
 	text = case_unfolding(text)
 	cited_info,text = extract_cited_info(text)
 	infobox,text = extract_infobox(text)
+	infobox_tokens =preprocessor(infobox,options)
+	if len(infobox_tokens)<FIELD_MIN_TOKENS:
+		return {}
 	category,text = extract_category(text)
+	category_tokens = preprocessor(category,options)
+	if len(category_tokens)<FIELD_MIN_TOKENS:
+		return {}
+
 	extlinks,text = extract_extlinks(text)
+	extlinks_tokens = preprocessor(extlinks,options)
+	if len(extlinks_tokens)<FIELD_MIN_TOKENS:
+		return {}
 	reference,text = extract_references(cited_info,text)
+	reference_tokens = preprocessor(reference,options)
+	if len(reference_tokens)<FIELD_MIN_TOKENS:
+		return {}
 	text = filter_contents(text)
-	options={"case_unfolding":False,"length_check":True,"remove_punctuations":False,"strip_tokens":True,"lang_tokens":True}
-
-	return {"i":preprocessor(infobox,options),"c":preprocessor(category,options),"e":preprocessor(extlinks,options),"r":preprocessor(reference,options),"b":preprocessor(text,options)}
-
+	bodytext_tokens = preprocessor(text,options)
+	if len(bodytext_tokens)<FIELD_MIN_TOKENS:
+		return {}
+	if len(infobox.split())+len(category.split())+len(extlinks.split())+len(reference.split())+len(text.split())>ARTICLE_MIN_WORDS:
+		return {"i":infobox_tokens,"c":category_tokens,"e":extlinks_tokens,"r":reference_tokens,"b":bodytext_tokens}
+	else:
+		return {}
 
 def get_stats(tokens,options):
 	stats=[]
@@ -235,7 +254,7 @@ def get_time_info(sec_elapsed):
 	s = sec_elapsed % 60
 	return "{}:{:>02}:{:>05.2f}".format(h, m, s)
 
-
+duplicate_titles=defaultdict(int)
 class WikiHandler(xml.sax.handler.ContentHandler):
 	def __init__(self):
 		self.inTitle=0
@@ -251,7 +270,7 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 			self.inId = 1
 			self.flag=1
 			if DOCID_CTR%10000==0: ## store the mapping between wiki page (doc_ID) ad title after processing 1000 pages.
-				if DOCID_TOKEN_STATS_MAP is not None: ## if DOCID_TITLE_MAP file is open then close it, else open it
+				if DOCID_TOKEN_STATS_MAP is not None:
 					DOCID_TOKEN_STATS_MAP.close()
 				if not os.path.exists(sys.argv[2]):
 					os.makedirs(sys.argv[2])
@@ -275,17 +294,26 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 			self.bufferText += data
 
 	def endElement(self, name):
+		global DOCID_CTR
 		if name == "title":
 			self.inTitle = 0
 		elif name == "text":
-			title = fix_text(self.bufferTitle)
-			text = fix_text(self.bufferText)
-			text = process_text(text)
-			options={"case_unfolding":True,"length_check":True,"remove_punctuations":True,"strip_tokens":True,"lang_tokens":True}
-			text["t"]=preprocessor(title.strip(),options)
-			stat_options={"token_count":True,"unique_token_count":True,"max_freq_token":True,"min_freq_token":True,"avg_token_len":True,"avg_token_freq":True,"doc_len":True}
-			token_stats = compute_text_stats(text,stat_options)
-			DOCID_TOKEN_STATS_MAP.write(self.docId + ";" + ",".join(token_stats) + "\n")
+			title = fix_text(self.bufferTitle).strip()
+			text = fix_text(self.bufferText).strip()
+			self.bufferTitle=self.bufferTitle.strip()
+			if text and self.bufferTitle and punctuations_removal(self.bufferTitle) and duplicate_titles[self.bufferTitle]<1:
+				duplicate_titles[self.bufferTitle]+=1
+				text_tokens = process_text(text)
+				options={"case_unfolding":True,"length_check":True,"remove_punctuations":True,"strip_tokens":True,"lang_tokens":True}
+				if text_tokens:
+					text_tokens["t"]=preprocessor(title,options)
+					stat_options={"token_count":True,"unique_token_count":True,"max_freq_token":True,"min_freq_token":True,"avg_token_len":True,"avg_token_freq":True,"doc_len":True}
+					token_stats = compute_text_stats(text_tokens,stat_options)
+					DOCID_TOKEN_STATS_MAP.write(self.docId + ";" + ",".join(token_stats) + "\n")
+				else:
+					DOCID_CTR+=-1
+			else:
+				DOCID_CTR+=-1
 			self.inText = 0
 		elif name == "id":
 			self.inId = 0
@@ -296,6 +324,7 @@ def main():
 	parser = xml.sax.make_parser()
 	parser.setContentHandler(WikiHandler())
 	parser.parse(sys.argv[1])
+	DOCID_TOKEN_STATS_MAP.close()
 
 if __name__ == '__main__':
 	start_time = time.time()

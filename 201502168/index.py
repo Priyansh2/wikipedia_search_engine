@@ -25,8 +25,11 @@ nlp.max_length = 1000000000
 FILES = 0 ## counter of wiki_pages
 FILE_CTR = 0 ## file offset of file which contains docid mapped with title
 FILE_LIMIT = 10000 ## number of wiki pages to be indexed at once
+ARTICLE_MIN_WORDS = 50 ## Ignore article with less than 50 words
+FIELD_MIN_TOKENS = 2 ## ignore article if any of its field has less than 2 tokens after preprocessing
 DOCID_CTR = 0 ## docId which is mapped to title
 DOCID_TITLE_MAP = None ## store file discriptor of docid-title mapping
+DOCID_TOKEN_STATS_MAP=None
 posting_list = SortedDict()
 porter_stemmer = PorterStemmer()
 DATA=defaultdict(list)
@@ -121,8 +124,6 @@ def create_postings(tokens,elem,docID):
 				posting_list[stemmed_word][docID]=1
 		else:
 			posting_list[stemmed_word]=SortedDict({docID:1})
-
-#def docID_maxfreq_mapping(tokens,docID):
 
 def create_field_postings(field_token_dict,docID):
 	for field in field_token_dict:
@@ -224,21 +225,34 @@ def extract_infobox(text):
 
 def process_text(text):
 	## processing each wiki_page parts by parts
+	options={"case_unfolding":False,"length_check":True,"remove_punctuations":False,"strip_tokens":True,"lang_tokens":True}
 	text = case_unfolding(text)
 	cited_info,text = extract_cited_info(text)
 	infobox,text = extract_infobox(text)
+	infobox_tokens =preprocessor(infobox,options)
+	#if len(infobox_tokens)<FIELD_MIN_TOKENS:
+		#return {}
 	category,text = extract_category(text)
-	extlinks,text = extract_extlinks(text)
-	reference,text = extract_references(cited_info,text)
-	text = filter_contents(text)
-	'''DATA["infobox"].append(infobox)
-	DATA["category"].append(category)
-	DATA["extlinks"].append(extlinks)
-	DATA["references"].append(reference)
-	DATA["bodytext"].append(text)'''
-	options={"case_unfolding":False,"length_check":True,"remove_punctuations":False,"strip_tokens":True,"lang_tokens":True}
+	category_tokens = preprocessor(category,options)
+	#if len(category_tokens)<FIELD_MIN_TOKENS:
+		#return {}
 
-	return {"i":preprocessor(infobox,options),"c":preprocessor(category,options),"e":preprocessor(extlinks,options),"r":preprocessor(reference,options),"b":preprocessor(text,options)}
+	extlinks,text = extract_extlinks(text)
+	extlinks_tokens = preprocessor(extlinks,options)
+	#if len(extlinks_tokens)<FIELD_MIN_TOKENS:
+		#return {}
+	reference,text = extract_references(cited_info,text)
+	reference_tokens = preprocessor(reference,options)
+	#if len(reference_tokens)<FIELD_MIN_TOKENS:
+		#return {}
+	text = filter_contents(text)
+	bodytext_tokens = preprocessor(text,options)
+	#if len(bodytext_tokens)<FIELD_MIN_TOKENS:
+		#return {}
+	if len(infobox.split())+len(category.split())+len(extlinks.split())+len(reference.split())+len(text.split())>ARTICLE_MIN_WORDS:
+		return {"i":infobox_tokens,"c":category_tokens,"e":extlinks_tokens,"r":reference_tokens,"b":bodytext_tokens}
+	else:
+		return {}
 
 def write_to_file(end=False): ## create partial inverted_index files for handling memory and time issues
 	global FILES, FILE_CTR, posting_list
@@ -316,24 +330,39 @@ def merge_files(remove_index_files=False): ## merging inverted_index files using
 		[os.remove(file_) for file_ in index_files]
 		shutil.rmtree(inverted_index) ## remove the previously_created partial inverted_index files
 
-
 def get_time_info(sec_elapsed):
 	h = int(sec_elapsed / (60 * 60))
 	m = int((sec_elapsed % (60 * 60)) / 60)
 	s = sec_elapsed % 60
 	return "{}:{:>02}:{:>05.2f}".format(h, m, s)
 
-def write_data_to_file():
-	for field in DATA:
-		fd = open("temp/"+field+".txt","w")
-		for line in DATA[field]:
-			if line.strip():
-				fd.write(line+"\n")
-			else:
-				fd.write("NULL\n")
-		#fd.write("\n".join(DATA[field]))
-		fd.close()
-count=10000
+def get_stats(tokens,options):
+	stats=[]
+	if options["token_count"]:
+		stats.append("token_count|"+str(sum(tokens.values())))
+	if options["unique_token_count"]:
+		stats.append("unique_token_count|"+str(len(tokens.keys())))
+	if options["max_freq_token"]:
+		stats.append("max_freq_token|"+str(tokens.most_common()[0][1]))
+	if options["avg_token_freq"]:
+		stats.append("avg_token_freq|"+str(sum(tokens.values())/len(tokens.keys())))
+	if options["min_freq_token"]:
+		stats.append("min_freq_token|"+str(tokens.most_common()[-1][1]))
+	if options["avg_token_len"]:
+		stats.append("avg_token_len|"+str(sum([len(token) for token in tokens.keys()])/len(tokens.keys())))
+	if options["doc_len"]:
+		stats.append("doc_len|"+str(len(" ".join(tokens))))
+	return sorted(stats)
+
+def compute_text_stats(text,stat_options):
+	all_tokens=Counter()
+	for field in text:
+		all_tokens+=Counter(text[field])
+	stats = get_stats(all_tokens,stat_options)
+	return stats
+
+
+duplicate_titles=defaultdict(int)
 class WikiHandler(xml.sax.handler.ContentHandler):
 	def __init__(self):
 		self.inTitle=0
@@ -343,16 +372,19 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 		self.docId=None
 
 	def startElement(self, name, attributes):
-		global DOCID_CTR, DOCID_TITLE_MAP                           #Start Tag
+		global DOCID_CTR, DOCID_TITLE_MAP,DOCID_TOKEN_STATS_MAP                           #Start Tag
 		if name == "id" and self.flag==0:                          #Start Tag: Id
 			self.bufferId = ""
 			self.inId = 1
 			self.flag=1
 			if DOCID_CTR%10000==0: ## store the mapping between wiki page (doc_ID) ad title after processing 1000 pages.
-				if DOCID_TITLE_MAP is not None: ## if DOCID_TITLE_MAP file is open then close it, else open it
-					DOCID_TITLE_MAP.close()
 				if not os.path.exists(sys.argv[2]):
 					os.makedirs(sys.argv[2])
+				if DOCID_TITLE_MAP is not None: ## if DOCID_TITLE_MAP file is open then close it, else open it
+					DOCID_TITLE_MAP.close()
+				if DOCID_TOKEN_STATS_MAP is not None:
+					DOCID_TOKEN_STATS_MAP.close()
+				DOCID_TOKEN_STATS_MAP = open(os.path.join(sys.argv[2],"docid_token_stats_map-" + str(int(DOCID_CTR/10000))), "w")
 				DOCID_TITLE_MAP = open(os.path.join(sys.argv[2],"docid_title_map-" + str(int(DOCID_CTR/10000))), "w")
 			self.docId = str(DOCID_CTR)
 			DOCID_CTR += 1
@@ -368,30 +400,34 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 		if self.inId and self.flag==1:
 			self.bufferId += data
 		elif self.inTitle:
-			#data=fix_text(data)
 			self.bufferTitle += data
 		elif self.inText:
-			#data=fix_text(data)
 			self.bufferText += data
 
 	def endElement(self, name):
-		global count
+		global DOCID_CTR,DOCID_TOKEN_STATS_MAP,DOCID_TOKEN_STATS_MAP
 		if name == "title":
 			self.inTitle = 0
 		elif name == "text":
-			## do with text and title buffer
-			#if count==0:
-				#write_data_to_file()
-				#sys.exit()
-			title = fix_text(self.bufferTitle)
-			text = fix_text(self.bufferText)
-			text = process_text(text)
-			options={"case_unfolding":True,"length_check":True,"remove_punctuations":True,"strip_tokens":True,"lang_tokens":True}
-			text["t"]=preprocessor(title.strip(),options)
-			#count+=-1
-			create_field_postings(text,self.docId)
-			DOCID_TITLE_MAP.write(self.docId + ":" + self.bufferTitle.strip() + "\n")
-			write_to_file()
+			title = fix_text(self.bufferTitle).strip()
+			text = fix_text(self.bufferText).strip()
+			self.bufferTitle=self.bufferTitle.strip()
+			if text and self.bufferTitle and punctuations_removal(self.bufferTitle) and duplicate_titles[self.bufferTitle]<1:
+				duplicate_titles[self.bufferTitle]+=1
+				text_tokens = process_text(text)
+				options={"case_unfolding":True,"length_check":True,"remove_punctuations":True,"strip_tokens":True,"lang_tokens":True}
+				if text_tokens:
+					text_tokens["t"]=preprocessor(title,options)
+					stat_options={"token_count":True,"unique_token_count":True,"max_freq_token":True,"min_freq_token":True,"avg_token_len":True,"avg_token_freq":True,"doc_len":True}
+					token_stats = compute_text_stats(text_tokens,stat_options)
+					DOCID_TOKEN_STATS_MAP.write(self.docId + ";" + ",".join(token_stats) + "\n")
+					create_field_postings(text_tokens,self.docId)
+					DOCID_TITLE_MAP.write(self.docId + ":" + self.bufferTitle + "\n")
+					write_to_file()
+				else:
+					DOCID_CTR+=-1
+			else:
+				DOCID_CTR+=-1
 			self.inText = 0
 		elif name == "id":
 			self.inId = 0
@@ -404,6 +440,7 @@ def main():
 	parser.parse(sys.argv[1])
 	write_to_file(True) ## to write partial index
 	DOCID_TITLE_MAP.close()
+	DOCID_TOKEN_STATS_MAP.close()
 	merge_files(True)
 	create_secondary_index(sys.argv[2])
 	with open("docid_ctr", "w") as f: ## stroing the docID counter (DOCID_CTR) value to file "docid_ctr"

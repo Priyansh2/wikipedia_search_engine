@@ -230,25 +230,25 @@ def process_text(text):
 	cited_info,text = extract_cited_info(text)
 	infobox,text = extract_infobox(text)
 	infobox_tokens =preprocessor(infobox,options)
-	if len(infobox_tokens)<FIELD_MIN_TOKENS:
-		return {}
+	#if len(infobox_tokens)<FIELD_MIN_TOKENS:
+		#return {}
 	category,text = extract_category(text)
 	category_tokens = preprocessor(category,options)
-	if len(category_tokens)<FIELD_MIN_TOKENS:
-		return {}
+	#if len(category_tokens)<FIELD_MIN_TOKENS:
+		#return {}
 
 	extlinks,text = extract_extlinks(text)
 	extlinks_tokens = preprocessor(extlinks,options)
-	if len(extlinks_tokens)<FIELD_MIN_TOKENS:
-		return {}
+	#if len(extlinks_tokens)<FIELD_MIN_TOKENS:
+		#return {}
 	reference,text = extract_references(cited_info,text)
 	reference_tokens = preprocessor(reference,options)
-	if len(reference_tokens)<FIELD_MIN_TOKENS:
-		return {}
+	#if len(reference_tokens)<FIELD_MIN_TOKENS:
+		#return {}
 	text = filter_contents(text)
 	bodytext_tokens = preprocessor(text,options)
-	if len(bodytext_tokens)<FIELD_MIN_TOKENS:
-		return {}
+	#if len(bodytext_tokens)<FIELD_MIN_TOKENS:
+		#return {}
 	if len(infobox.split())+len(category.split())+len(extlinks.split())+len(reference.split())+len(text.split())>ARTICLE_MIN_WORDS:
 		return {"i":infobox_tokens,"c":category_tokens,"e":extlinks_tokens,"r":reference_tokens,"b":bodytext_tokens}
 	else:
@@ -336,6 +336,32 @@ def get_time_info(sec_elapsed):
 	s = sec_elapsed % 60
 	return "{}:{:>02}:{:>05.2f}".format(h, m, s)
 
+def get_stats(tokens,options):
+	stats=[]
+	if options["token_count"]:
+		stats.append("token_count|"+str(sum(tokens.values())))
+	if options["unique_token_count"]:
+		stats.append("unique_token_count|"+str(len(tokens.keys())))
+	if options["max_freq_token"]:
+		stats.append("max_freq_token|"+str(tokens.most_common()[0][1]))
+	if options["avg_token_freq"]:
+		stats.append("avg_token_freq|"+str(sum(tokens.values())/len(tokens.keys())))
+	if options["min_freq_token"]:
+		stats.append("min_freq_token|"+str(tokens.most_common()[-1][1]))
+	if options["avg_token_len"]:
+		stats.append("avg_token_len|"+str(sum([len(token) for token in tokens.keys()])/len(tokens.keys())))
+	if options["doc_len"]:
+		stats.append("doc_len|"+str(len(" ".join(tokens))))
+	return sorted(stats)
+
+def compute_text_stats(text,stat_options):
+	all_tokens=Counter()
+	for field in text:
+		all_tokens+=Counter(text[field])
+	stats = get_stats(all_tokens,stat_options)
+	return stats
+
+
 duplicate_titles=defaultdict(int)
 class WikiHandler(xml.sax.handler.ContentHandler):
 	def __init__(self):
@@ -346,7 +372,7 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 		self.docId=None
 
 	def startElement(self, name, attributes):
-		global DOCID_CTR, DOCID_TITLE_MAP                           #Start Tag
+		global DOCID_CTR, DOCID_TITLE_MAP,DOCID_TOKEN_STATS_MAP                           #Start Tag
 		if name == "id" and self.flag==0:                          #Start Tag: Id
 			self.bufferId = ""
 			self.inId = 1
@@ -379,7 +405,7 @@ class WikiHandler(xml.sax.handler.ContentHandler):
 			self.bufferText += data
 
 	def endElement(self, name):
-		global DOCID_CTR
+		global DOCID_CTR,DOCID_TOKEN_STATS_MAP,DOCID_TOKEN_STATS_MAP
 		if name == "title":
 			self.inTitle = 0
 		elif name == "text":

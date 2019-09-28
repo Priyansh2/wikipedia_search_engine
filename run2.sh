@@ -8,7 +8,7 @@
 #SBATCH --time=4-00:00:00
 
 export DATA_DUMP="enwiki-latest.xml" ##path of data
-export PY_FILE="/home/priyansh.agrawal/ire/cpy_get_token_stats.py"
+export PY_FILE="/home/priyansh.agrawal/ire/index.py"
 mkdir -p /scratch/$USER/
 if [ -f /scratch/$USER/$DATA_DUMP ]; then
 echo "$DATA_DUMP exist"
@@ -19,6 +19,6 @@ rsync -avzP ada:$PY_FILE /scratch/$USER/
 cd /scratch/$USER/
 source /home/$USER/p3.6/bin/activate
 pwd
-python cpy_get_token_stats.py $DATA_DUMP stats
-rsync -avzP /scratch/$USER/stats ada:/share1/$USER/index
+python index.py $DATA_DUMP index1
+rsync -avzP /scratch/$USER/index1 ada:/share1/$USER/index
 
