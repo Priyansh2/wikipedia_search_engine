@@ -443,7 +443,7 @@ def main():
 	DOCID_TOKEN_STATS_MAP.close()
 	merge_files(True)
 	create_secondary_index(sys.argv[2])
-	with open("docid_ctr", "w") as f: ## stroing the docID counter (DOCID_CTR) value to file "docid_ctr"
+	with open(os.path.join(sys.argv[2],"docid_ctr"), "w") as f: ## stroing the docID counter (DOCID_CTR) value to file "docid_ctr"
 		f.write(str(DOCID_CTR) + "\n")
 
 if __name__ == '__main__':

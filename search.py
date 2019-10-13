@@ -26,7 +26,7 @@ porter_stemmer = PorterStemmer()
 query_re = re.compile(r'[t|b|c|e|i|r]:')
 vsm_option={"pivot_len_normalization":True,"cosine_normalization":False}
 field_map={"title:":"t:","body:":"b:","category:":"c:","ref:":"r:","infobox:":"i:","link:":"e:"}
-DOC_CTR = open("docid_ctr","r").read().split("\n")[0].strip()
+DOC_CTR = open(os.path.join(sys.argv[1],"docid_ctr"),"r").read().split("\n")[0].strip()
 DOC_CTR=int(DOC_CTR)
 token_stats={}
 ## title should be weighted more or equal than body and then comes the references which is weighted more than infobox which is more than category and external links
