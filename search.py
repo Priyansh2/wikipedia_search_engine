@@ -19,7 +19,7 @@ from spacy.lang.en import English
 from spacy.lang.en.stop_words import STOP_WORDS
 from heapq import heappush, heappop
 from numpy.linalg import norm
-
+import dill as pickle
 nlp = English()
 nlp.max_length = 1000000000
 porter_stemmer = PorterStemmer()
@@ -36,6 +36,19 @@ field_weights3={'t': 0.3,'b': 0.25,'i': 0.10,'c': 0.05,'e': 0.10,'r': 0.2} ## ti
 field_weights4={'t': 0.3,'b': 0.3,'i': 0.10,'c': 0.05,'e': 0.05,'r': 0.2} ## title = body > ref > infobox > cat = extlink
 field_weights5={'t': 1,'b': 1,'i': 1,'c': 1,'e': 1,'r': 1} ## do not apply zone weighting
 field_weights=field_weights1
+
+
+def save_model(file_path,model):
+	file = open(file_path,"wb")
+	pickle.dump(model,file)
+	file.close()
+
+def load_model(file_path):
+	file = open(file_path,"rb")
+	model = pickle.load(file)
+	file.close()
+	return model
+
 def read_token_stats(path_to_index):
 	for file in os.listdir(path_to_index):
 		if "docid_token_stats_map-" in file:
@@ -46,6 +59,27 @@ def read_token_stats(path_to_index):
 						line = line.split(";")
 						token_stats[line[0]]=line[1]
 			f.close()
+
+#read_token_stats(sys.argv[1])
+#save_model("token_stats.pkl",token_stats)
+#print("Done!!")
+print("Loading token_stats...")
+start_time = time.time()
+token_stats = load_model("token_stats.pkl")
+print("Time(sec): ",time.time()-start_time)
+print()
+
+def get_token_stats(docId,stat_idx):
+	path_to_index = sys.argv[1]
+	docId = int(docId)
+	with open(os.path.join(path_to_index,"docid_token_stats_map-" + str(int(docId/10000))), "r") as f:
+		for line in f:
+			line=line.strip()
+			id_ = line.split(";")[0]
+			if id_ == str(docId):
+				statline = line.split(";")[1]
+				return float(statline.split(",")[stat_idx].split("|")[1].strip())
+
 
 def get_time_info(sec_elapsed):
 	h = int(sec_elapsed / (60 * 60))
@@ -101,7 +135,9 @@ def calc_tfidf(documents,vsm_options=None):
 				if vsm_options:
 					if docId not in norms:
 						norms[docId]=float(token_stats[docId].split(",")[-1].split("|")[1].strip())
+						#norms[docId] = get_token_stats(docId,-1)
 					tf = avg_tf_normalization(documents[term][docId][0],float(token_stats[docId].split(",")[0].split("|")[1].strip()))
+					#tf = avg_tf_normalization(documents[term][docId][0],get_token_stats(docId,0))
 				else:
 					tf = tf_log(documents[term][docId][0]) ## documents[term][docId] is freq. of term in doc of id 'docId'
 				tfidf_score = tf * idf
@@ -271,6 +307,7 @@ def get_expanded_query(query):
 
 def field_query(path_to_index,query):
 	new_fields,new_query = get_expanded_query(query)
+	#print(new_fields,new_query)
 	if not new_fields or not new_query:
 		return []
 	#documents =defaultdict(lambda: defaultdict(int))
@@ -345,7 +382,6 @@ def search(path_to_index, queries):
 			outputs.append(normal_query(path_to_index,query))
 	return outputs
 
-
 def main():
 	path_to_index = sys.argv[1]
 	#testfile = sys.argv[2]
@@ -354,8 +390,6 @@ def main():
 	#path_to_index="index"
 	#testfile="queryfile"
 	#path_to_output="resultfile"
-
-	read_token_stats(path_to_index)
 	while True:
 		try:
 			query = input(">>> Enter search query: ")
