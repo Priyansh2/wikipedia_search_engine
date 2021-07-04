@@ -1,12 +1,9 @@
 # Wikipedia Search Engine
-Designed a scalable and efficient search engine in Python to query a Wikipedia corpus of ~75GB with a response time of 1s and outputs the top 10 relevant documents based on the search query.
+* Designed and built a search system to process a user-given query within 1s (Python, Spacy, ftfy library)
+* Implemented Multi-Level Indexing to address the scaling and retrieval time issues
+* Identified, developed scaling solutions with SAX parsing and Multi-Level Indexing without compromising page retrieval time
+* Devised a Search module for retrieval and ranking of relevant wiki titles using Vector Space Model with TF-IDF weighting scheme
 
-# Problem Description
-- The project involves building a search engine on the Wikipedia Data Dump without using any external index. For this project, data dump of size ~75 GB is used to create a global index upon which search operation is conducted based on given query. 
-- The creation of index must be done in a efficient and scalable manner i.e, on a dump of size ~100 MB (~0.126% of target: 75 GB) the index creation time must be <= 150sec in Python environment. Moreover, index size should be less than 1/4 (< 25% of 75GB) of dump size.
-- The search operation should return results in realtime with a max limit of 1-2 sec per query. 
-- The search results which should be displayed are the top 10 relevant documents (wiki articles titles) for each input query.
-- The input query can be either normal-query ('free word' query or query consists of only words) or field-query where fields include Title, Infobox, Body, Category, Links and References of a wikipedia page. 
 
 # Requirements
 - Python >=3.7.3
