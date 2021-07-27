@@ -1,8 +1,8 @@
 # Wikipedia Search Engine
-* Designed and built a search system to process a user-given query within 1s (Python, Spacy, ftfy library)
-* Implemented Multi-Level Indexing to address the scaling and retrieval time issues
-* Identified, developed scaling solutions with SAX parsing and Multi-Level Indexing without compromising page retrieval time
-* Devised a Search module for retrieval and ranking of relevant wiki titles using Vector Space Model with TF-IDF weighting scheme
+* Designed and developed a search system using Python and Spacy to process a user-given query within 1s
+* Scaled the project with SAX parsing and multi-level indexing. Reduced page retrieval time by 40% with binary search
+* Built a search module for retrieval and ranking (top-10) of relevant wiki titles using vector space model with TF-IDF weighting scheme
+
 
 
 # Requirements
